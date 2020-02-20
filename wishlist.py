@@ -1,43 +1,51 @@
 import urllib.request
 import time
+import random
 from bs4 import BeautifulSoup
 import wishlist_info as info
 
 
 def main():
-
     # eshop-prices:
-    base_url = 'https://eshop-prices.com/'
+    base_url_eshop = 'https://eshop-prices.com/'
+    base_url_playstation = 'https://store.playstation.com/pt-pt/psplus'
     for game in info.wish_list:
+        possible_game_urls = []
+
         print('\nGame: {}'.format(game))
         print('Searching for the game...')
 
-        game_url_name = ''
         game_search_name = game.replace(' ', '+')
-        soup = html_soup_retriever(base_url + 'games?q=' + game_search_name)  # First I need to find the corresponding game and respective page
+        search_result_soup = html_soup_retriever(base_url_eshop + 'games?q=' + game_search_name)  # First I need to find the corresponding game and respective page
 
-        game_title = title_retrieval(soup)
-        print('Game found: {}'.format(game_title))
-
-        print('Searching for prices...')
-        for a in soup.find_all('a', href=True):
+        for a in search_result_soup.find_all('a', href=True):
             if not a['href'].startswith('https:'):
-                game_url_name = a['href']
-                break  # Makes sure to only match the first result of the search, otherwise it matches the last
+                possible_game_urls.append(a['href'])
 
-        if game_url_name:
-            soup = html_soup_retriever(base_url + game_url_name + '?currency=EUR')
-            # print(soup.prettify())
+        if not possible_game_urls:
+            print('No link found')
+            time.sleep(random.randrange(1, 3))
+            continue
 
-            all_prices = prices_retrieval(soup)
-            all_countries = countries_retrieval(soup)
+        for possible_game_url in possible_game_urls:
+            game_title = title_retrieval(search_result_soup)
+            print('Game found: {}'.format(game_title))
+
+            prices_soup = html_soup_retriever(base_url_eshop + possible_game_url + '?currency=EUR')
+
+            all_prices = prices_retrieval(prices_soup)
+            all_countries = countries_retrieval(prices_soup)
+
+            if len(all_countries) < 10:
+                print('Found a local release, testing other links...')
+                continue
+
             price_and_country_dict = price_and_country_dict_creation(all_prices, all_countries)
 
             info_parser(price_and_country_dict, info.reference_country, info.top_results_count)
-        else:
-            print('No link found')
 
-        time.sleep(1)
+            time.sleep(random.randrange(1, 3))
+            break
 
 
 def html_soup_retriever(url):
@@ -101,7 +109,7 @@ def info_parser(price_and_country_dict, reference_country, top_results_shown):
         lowest_price = price_and_country_dict[country]
         try:
             # Case when game has promotions going on
-            print('Promotion - {} (original price of {}) from {} {} .'.format(lowest_price[1], lowest_price[0], country, lowest_price[2]))
+            print('Promotion - {} (original price of {}) from {} {}.'.format(lowest_price[1], lowest_price[0], country, lowest_price[2]))
         except IndexError:
             # Case when the game has no promotion going on
             print('{} from {}.'.format(lowest_price[0], country))
